@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bank Heist | Malam di Kota</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h1>BANK HEIST</h1>
+<div id="stage">
+  <div id="live" class="sr" role="status" aria-live="polite"></div>
+  <div id="gameView">
+    <canvas id="c" width="320" height="240" role="img" aria-label="Layar permainan Bank Heist"></canvas>
+    <canvas id="text" aria-hidden="true"></canvas>
+    <button id="helpToggle" type="button" aria-haspopup="dialog" aria-label="Bantuan kontrol dan cara main" title="Bantuan [H]">?</button>
+    <button id="soundToggle" type="button" aria-pressed="true" aria-label="Toggle audio">AUDIO: ON</button>
+    <button id="missionToggle" type="button" aria-expanded="false" aria-controls="missionPanel">MISI +</button>
+    <button id="useDiversion" type="button" hidden>LEMPAR UMPAN [F]</button>
+    <section id="missionPanel" aria-label="Daftar misi" hidden>
+      <h2>MISI</h2>
+      <div class="mission-detail">
+        <h3>Misi utama</h3>
+        <p id="mainMissionText"></p>
+      </div>
+      <div class="mission-detail side">
+        <h3>Misi sampingan</h3>
+        <p id="sideMissionText"></p>
+      </div>
+    </section>
+  </div>
+
+  <div id="heistChoice" class="layer" hidden>
+    <div class="box menu-box">
+      <h2>PILIH RENCANA</h2>
+      <p class="rule">Cara masukmu menentukan tingkat alarm dan reaksi penjaga.</p>
+      <button id="stealthPlan" type="button">SENYAP — lebih sulit melihatmu</button>
+      <button id="loudPlan" type="button">BERISIK — cepat, tapi alarm langsung aktif</button>
+    </div>
+  </div>
+
+  <nav id="mobileControls" aria-label="Kontrol permainan sentuh" hidden>
+    <div class="touch-dpad" aria-label="Kontrol gerakan">
+      <button type="button" data-game-key="KeyW" aria-label="Jalan ke atas">▲</button>
+      <button type="button" data-game-key="KeyA" aria-label="Jalan ke kiri">◀</button>
+      <button type="button" data-game-key="KeyS" aria-label="Jalan ke bawah">▼</button>
+      <button type="button" data-game-key="KeyD" aria-label="Jalan ke kanan">▶</button>
+    </div>
+    <div class="touch-actions">
+      <button type="button" data-game-key="KeyE" class="touch-interact">INTERAKSI</button>
+      <button type="button" data-game-key="ShiftLeft">JONGKOK</button>
+      <button type="button" data-game-key="KeyF" id="touchDiversion" hidden>UMPAN</button>
+      <button type="button" data-game-key="KeyP">JEDA</button>
+    </div>
+  </nav>
+
+  <div id="storyChoice" class="layer" hidden>
+    <div class="box menu-box">
+      <h2>TAWARAN SARI</h2>
+      <p class="rule">Sari bisa membantumu, tapi menerima bantuan berarti mempercayainya.</p>
+      <button id="acceptIntel" type="button">MINTA INFO PATROLI</button>
+      <button id="declineIntel" type="button">JANGAN LIBATKAN DIA</button>
+    </div>
+  </div>
+
+  <div id="mainMenu" class="layer">
+    <div class="lobby-box">
+      <div class="lobby-hero">
+        <span class="lobby-kicker">PIXEL CITY · AFTER DARK</span>
+        <h2>BANK<br><span>HEIST</span></h2>
+        <p>Malam panjang. Bank terkunci. Pilihanmu menentukan cerita.</p>
+        <div class="lobby-tags"><span>STEALTH</span><span>STORY</span><span>PIXEL RPG</span></div>
+        <div class="lobby-skyline" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><b></b></div>
+      </div>
+      <div class="lobby-side">
+        <div class="lobby-status">
+          <span class="lobby-kicker">STATUS PETUALANGAN</span>
+          <div class="lobby-stat"><span>UANG</span><b id="lobbyMoney">Rp 0</b></div>
+          <div class="lobby-stat"><span>MISI AKTIF</span><b id="lobbyMission">Belum dimulai</b></div>
+          <div class="lobby-stat"><span>ALARM KOTA</span><b id="lobbyHeat">AMAN</b></div>
+          <div class="lobby-stat"><span>ENDING TERBUKA</span><b id="lobbyEndings">0/6</b></div>
+        </div>
+        <div class="lobby-actions">
+          <button id="continueGame" type="button">LANJUTKAN</button>
+          <button id="newGame" type="button">MULAI PETUALANGAN</button>
+          <p class="lobby-controls">LAPTOP: WASD / PANAH · E INTERAKSI<br>HP: GUNAKAN TOMBOL SENTUH</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="pauseMenu" class="layer" hidden>
+    <div class="box menu-box">
+      <h2>PERMAINAN DIJEDA</h2>
+      <p class="rule">Progres tersimpan otomatis.</p>
+      <button id="resumeGame" type="button">LANJUT BERMAIN</button>
+      <button id="saveAndMenu" type="button">SIMPAN & MENU UTAMA</button>
+    </div>
+  </div>
+
+  <div id="skinShop" class="layer" hidden>
+    <div class="box menu-box">
+      <h2>LEMARI SKIN</h2>
+      <p class="rule">Beli dengan tabungan lalu pilih skin favoritmu.</p>
+      <div id="skinOptions" class="skin-options"></div>
+      <button id="closeSkinShop" type="button">KEMBALI KE TOKO</button>
+    </div>
+  </div>
+
+  <div id="cipher" class="layer" hidden>
+    <div class="box">
+      <h2>BRANKAS TERKUNCI</h2>
+      <p class="rule">1–26 = A–Z · -1 sampai -26 = a–z · 0 = spasi</p>
+      <div class="stats">
+        <span>LEVEL<b id="lv">1/5</b></span>
+        <span>SOAL<b id="qn">1/1</b></span>
+        <span>NYAWA<b id="lives">♥♥♥</b></span>
+        <span>WAKTU<b id="time">02:00</b></span>
+      </div>
+      <output id="seq"></output>
+      <p class="row">Kode ke-<b id="pos">1</b> · Huruf terbuka: <b id="found">-</b></p>
+      <form id="f">
+        <input id="num" type="number" step="1" min="-26" max="26" placeholder="mis. -11" autocomplete="off" required>
+        <button id="ok" type="submit">CEK</button>
+      </form>
+      <p id="msg">Ketik angka sesuai urutan, satu per satu. Esc untuk mundur dari brankas.</p>
+      <button id="next" type="button" hidden>LANJUT</button>
+      <button id="cipherClose" type="button">MUNDUR DARI BRANKAS [ESC]</button>
+    </div>
+  </div>
+
+  <div id="helpPanel" class="layer" hidden>
+    <div class="box help-box" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <h2 id="helpTitle">CARA MAIN</h2>
+      <p class="rule">Tekan H, ? atau Esc untuk menutup. Game berhenti selama bantuan terbuka.</p>
+      <h3>KONTROL</h3>
+      <div class="help-row"><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><p>Jalan. Panah keyboard juga bisa. Di HP pakai tombol panah di layar.</p></div>
+      <div class="help-row"><span class="keys"><kbd>E</kbd></span><p>Interaksi: bicara dengan warga, masuk gedung, buka brankas, ambil uang, cabut sekring. Tombol INTERAKSI di HP.</p></div>
+      <div class="help-row"><span class="keys"><kbd>SHIFT</kbd></span><p>Jongkok. Lebih pelan, tapi jarak pandang penjaga ke arahmu mengecil dan langkahmu tidak bersuara. Tombol JONGKOK di HP.</p></div>
+      <div class="help-row"><span class="keys"><kbd>F</kbd></span><p>Lempar umpan untuk mengalihkan penjaga terdekat (butuh Umpan pengalih dari toko).</p></div>
+      <div class="help-row"><span class="keys"><kbd>P</kbd><kbd>ESC</kbd></span><p>Jeda permainan. Progres tersimpan otomatis.</p></div>
+      <h3>DI DALAM BANK</h3>
+      <div class="help-row"><span class="keys"><kbd>?</kbd></span><p>Tanda kuning di atas penjaga: dia mendengar sesuatu atau sedang memeriksa. Berhenti bergerak atau jongkok.</p></div>
+      <div class="help-row"><span class="keys"><kbd>!</kbd></span><p>Tanda merah: penjaga melihatmu. Bar merah di atas layar naik, kalau penuh kamu ketahuan.</p></div>
+      <div class="help-row"><span class="keys"><kbd>◔</kbd></span><p>Area terang di depan penjaga dan kamera adalah jarak pandangnya. Hindari, atau lewat saat mereka berbalik.</p></div>
+      <div class="help-row"><span class="keys"><kbd>▣</kbd></span><p>Kotak sekring di dinding bawah bank mematikan kamera 15 detik, tapi satpam akan datang memeriksa.</p></div>
+      <div class="help-row"><span class="keys"><kbd>1–26</kbd></span><p>Sandi brankas: 1–26 = A–Z, angka negatif = huruf kecil, 0 = spasi. Di level terbalik, ketik mulai dari angka paling kanan.</p></div>
+      <button id="helpClose" type="button">MENGERTI</button>
+    </div>
+  </div>
+
+  <div id="loot" class="layer" hidden>
+    <div class="box ending-box" role="dialog" aria-modal="true" aria-labelledby="endingTitle">
+      <div class="ending-skyline" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
+      <span class="ending-kicker">EPILOG · MALAM DI KOTA</span>
+      <p id="endingRoute" class="ending-route"></p>
+      <h2 id="endingTitle">KAMU BERHASIL KABUR!</h2>
+      <p id="endingText" class="ending-story"></p>
+      <div class="ending-stats" aria-label="Ringkasan perampokan">
+        <div><span>HASIL BRANKAS</span><b id="endingReward">Rp 0</b></div>
+        <div><span>ALARM KOTA</span><b id="endingAlarms">0 kali</b></div>
+        <div><span>WARGA TERBANTU</span><b id="endingSideQuest">Tidak</b></div>
+      </div>
+      <div class="ending-replay">
+        <span>JALUR BERIKUTNYA</span>
+        <p id="endingReplay"></p>
+      </div>
+      <div class="ending-actions">
+        <button id="endingMenu" type="button">KEMBALI KE LOBBY</button>
+        <button id="again" type="button">COBA JALUR LAIN</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<p class="hint"><b>WASD / Panah</b> jalan · <b>Shift</b> jongkok di bank · <b>E</b> interaksi · <b>P / Esc</b> jeda</p>
+
+<script src="script.js"></script>
+<script src="atmosphere.js"></script>
+<script src="kota.js"></script>
+<script src="ending.js"></script>
+</body>
+</html>

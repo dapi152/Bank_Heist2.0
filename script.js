@@ -10,7 +10,7 @@ const cv = $('c'), mainCtx = cv.getContext('2d');
 const textCanvas = $('text'), textCtx = textCanvas.getContext('2d');
 let ctx = mainCtx;
 const T = 16, VW = 320, VH = 240, OUT = '#141a24';
-let textQueue = [], placeLabels = [];
+let textQueue = [], placeLabels = [], plateRects = [];
 function resizeTextCanvas() {
   const rect = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   textCanvas.width = Math.round(rect.width * dpr);
@@ -566,6 +566,9 @@ const guards = [
   { pts: [[11, 10], [17, 10], [17, 14], [11, 14]] }
 ];
 guards.forEach(g => { g.pts = g.pts.map(([x, y]) => [x * T + 8, y * T + 14]); });
+// mode senyap (yang lebih gampang): penjaga yang muter di tengah bank tidak ikut patroli
+const activeGuards = () => heistMode === 'stealth' ? guards.slice(0, 2) : guards;
+const coneWidth = () => heistMode === 'stealth' ? .5 : .7;
 const bankCameras = [
   { x: 14 * T + 8, y: 8 * T + 14, base: Math.PI / 2, ph: 0 },
   { x: 27 * T + 8, y: 13 * T + 14, base: Math.PI, ph: 2 }
@@ -1907,12 +1910,13 @@ function npcStep(n, dt) {
 }
 
 function guardStep(g, dt) {
+  const pace = g.speed * (heistMode === 'stealth' ? .75 : 1);
   if (g.distracted > 0) { g.distracted = Math.max(0, g.distracted - dt); return; }
   if (g.curious > 0) { g.curious -= dt; return; }
   if (g.invest) {
     const iv = g.invest, dx = iv.x - g.x, dy = iv.y - g.y, d = Math.hypot(dx, dy);
     if (d < 6) { iv.w += dt; if (iv.w > 2) g.invest = null; return; }
-    const nx = g.x + dx / d * g.speed * 1.15 * dt, ny = g.y + dy / d * g.speed * 1.15 * dt;
+    const nx = g.x + dx / d * pace * 1.15 * dt, ny = g.y + dy / d * pace * 1.15 * dt;
     let moved = false;
     if (!solidAt(nx, g.y)) { g.x = nx; moved = true; }
     if (!solidAt(g.x, ny)) { g.y = ny; moved = true; }
@@ -1923,13 +1927,13 @@ function guardStep(g, dt) {
   const [tx, ty] = g.route[g.i], dx = tx - g.x, dy = ty - g.y, d = Math.hypot(dx, dy);
   if (g.wait > 0) g.wait -= dt;
   else if (d < 2) { g.i = (g.i + 1) % g.route.length; g.wait = .4 + Math.random() * 1.2; }
-  else { g.x += dx / d * g.speed * dt; g.y += dy / d * g.speed * dt; g.ang = Math.atan2(dy, dx); g.t += dt; }
+  else { g.x += dx / d * pace * dt; g.y += dy / d * pace * dt; g.ang = Math.atan2(dy, dx); g.t += dt; }
 }
 const faceOf = a => Math.abs(Math.cos(a)) > Math.abs(Math.sin(a)) ? (Math.cos(a) > 0 ? 'right' : 'left') : (Math.sin(a) > 0 ? 'down' : 'up');
 
 function makeNoise(x, y, r) {
   noiseRings.push({ x, y, t: 0, r });
-  guards.forEach(g => {
+  activeGuards().forEach(g => {
     if (g.distracted > 0 || g.curious > 0 || g.invest) return;
     const dx = x - g.x, dy = y - (g.y - 8), d = Math.hypot(dx, dy);
     if (d > r) return;
@@ -1946,7 +1950,7 @@ function sees(g) {
   const visibility = (inventory.disguise ? 58 : 80) * styleScale * intelScale;
   if (d > (crouching() ? 46 : visibility) * (hasLoot ? 1.15 : 1)) return false;
   const a = Math.atan2(dy, dx), diff = Math.abs(Math.atan2(Math.sin(a - g.ang), Math.cos(a - g.ang)));
-  if (d > 14 && diff > .7) return false;
+  if (d > 14 && diff > coneWidth()) return false;
   for (let s = 6; s < d; s += 4) if (solidAt(gx + dx * s / d, gy + dy * s / d)) return false;
   return true;
 }
@@ -2063,7 +2067,7 @@ function chooseHeistMode(mode) {
 
 function useDiversion() {
   if (scene !== 'play' || where !== 'bank' || !inventory.diversion) return;
-  const nearest = guards
+  const nearest = activeGuards()
     .map(guard => ({ guard, distance: Math.hypot(guard.x - feet().x, guard.y - feet().y) }))
     .filter(item => item.distance <= 112)
     .sort((a, b) => a.distance - b.distance)[0];
@@ -2171,7 +2175,7 @@ function interact() {
   } else if (target.k === 'fuse') {
     fuseUsed = true; fuseT = 15;
     addInteractionEffect(FUSE.x, FUSE.y - 8, '#f0c24b');
-    const near = guards.map(g => ({ g, d: Math.hypot(g.x - FUSE.x, g.y - FUSE.y) })).sort((a, b) => a.d - b.d)[0];
+    const near = activeGuards().map(g => ({ g, d: Math.hypot(g.x - FUSE.x, g.y - FUSE.y) })).sort((a, b) => a.d - b.d)[0];
     if (near && !(near.g.distracted > 0)) near.g.invest = { x: FUSE.x, y: 17 * T + 6, w: 0 };
     toast('Sekring dicabut! Kamera mati, tapi satpam curiga.');
     playSound('success');
@@ -2417,14 +2421,14 @@ function update(dt) {
     makeNoise(f.x, f.y, 56 * (hasLoot ? 1.2 : 1) * (heistMode === 'loud' ? 1.3 : 1));
   }
   let seen = false;
-  guards.forEach(g => {
+  activeGuards().forEach(g => {
     guardStep(g, dt);
     if (sees(g)) { seen = true; g.seenT = .8; g.lastSeen = { x: f.x, y: f.y }; }
     else g.seenT = Math.max(0, (g.seenT || 0) - dt);
   });
   if (suspicion > .45) {
-    const src = guards.find(g => g.seenT > 0 && g.lastSeen);
-    if (src) guards.forEach(o => {
+    const src = activeGuards().find(g => g.seenT > 0 && g.lastSeen);
+    if (src) activeGuards().forEach(o => {
       if (o !== src && !(o.seenT > 0) && !o.invest && !(o.distracted > 0) && Math.hypot(o.x - src.x, o.y - src.y) < 220) {
         o.invest = { x: src.lastSeen.x, y: src.lastSeen.y, w: 0 };
       }
@@ -2443,7 +2447,7 @@ function update(dt) {
     toast('Bom asap dipakai—kabur sebelum penjaga melihatmu lagi!');
     saveProgress();
   }
-  const suspicionRate = heistMode === 'loud' ? 1.35 : heistMode === 'stealth' ? .85 : 1;
+  const suspicionRate = heistMode === 'loud' ? 1.35 : heistMode === 'stealth' ? .7 : 1;
   suspicion = clamp(suspicion + (seen ? dt * (inventory.lockpick ? 1.8 : 2.2) * suspicionRate : -dt * .8), 0, 1);
   if (suspicion >= 1) { caught('KETAHUAN!'); return; }
 
@@ -2510,11 +2514,27 @@ function renderText() {
   textQueue.forEach(drawText);
   textCtx.setTransform(1, 0, 0, 1, 0, 0);
 }
-function plate(s, x, y, color, right) {
+function plate(s, x, y, color, right, maxW) {
   ctx.font = 'bold 8px monospace';
-  const w = ctx.measureText(s).width + 8, px = x === null ? Math.round((VW - w) / 2) : right ? VW - w - 4 : x;
-  ctx.fillStyle = 'rgba(10,14,20,.8)'; ctx.fillRect(px, y, w, 13);
-  words(s, px + 4, y + 10, color);
+  if (plateRects.q !== textQueue) { plateRects = []; plateRects.q = textQueue; }
+  const limit = Math.min(maxW || VW - 8, VW - 8), full = ctx.measureText(s).width;
+  const lines = full + 8 > limit ? wrap(s, Math.max(8, Math.floor((limit - 8) / (full / Math.max(1, s.length))))) : [s];
+  const w = Math.ceil(Math.max(...lines.map(l => ctx.measureText(l).width))) + 8, h = 13 + (lines.length - 1) * 10;
+  const px = x === null ? Math.round((VW - w) / 2) : right ? VW - w - 4 : Math.min(x, VW - w - 2);
+  const hit = r => px < r.x + r.w && px + w > r.x && py < r.y + r.h && py + h > r.y;
+  let py = y;
+  for (let n = 0; n < 10; n++) {
+    const r = plateRects.find(hit);
+    if (!r) break;
+    py = y < VH / 2 ? r.y + r.h + 1 : r.y - h - 1;
+  }
+  plateRects.push({ x: px, y: py, w, h });
+  ctx.fillStyle = 'rgba(10,14,20,.8)'; ctx.fillRect(px, py, w, h);
+  lines.forEach((l, i) => words(l, px + 4, py + 10 + i * 10, color));
+}
+function reserveHud(x, y, w, h) {
+  if (plateRects.q !== textQueue) { plateRects = []; plateRects.q = textQueue; }
+  plateRects.push({ x, y, w, h });
 }
 function wrap(s, n) {
   const out = []; let line = '';
@@ -2577,9 +2597,9 @@ function draw() {
       }
       list.push({ y: camera.y, f: () => drawCameraSprite(camera) });
     });
-    guards.forEach(g => {
+    activeGuards().forEach(g => {
       ctx.fillStyle = g.seenT > 0 ? 'rgba(238,106,116,.32)' : 'rgba(255,230,120,.22)';
-      ctx.beginPath(); ctx.moveTo(g.x, g.y - 8); ctx.arc(g.x, g.y - 8, 80, g.ang - .7, g.ang + .7); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(g.x, g.y - 8); ctx.arc(g.x, g.y - 8, 80, g.ang - coneWidth(), g.ang + coneWidth()); ctx.closePath(); ctx.fill();
       list.push({ y: g.y, f: () => {
         chibi(g.x - 6, g.y - 16, guardLook, faceOf(g.ang), Math.floor(g.t * 6) % 2);
         if (g.seenT > 0) words('!', g.x, g.y - 20, '#ee6a74', 'bold 10px monospace', 'center');
@@ -2751,7 +2771,10 @@ function hud() {
     : !vaultOpen ? 'Cari brankas, periksa tiap ruangan'
     : !hasLoot ? 'Brankas terbuka! Ambil uangnya'
     : 'Kabur lewat pintu EXIT di bawah!';
-  plate(obj, 4, 4, '#f0e2a0');
+  if (where === 'city' && (scene === 'play' || scene === 'talk')) reserveHud(VW - 64, 58, 64, 46);
+  if (where === 'city') reserveHud(0, VH - 10, VW, 10);
+  if (hasLoot) plate(rp(shown), 0, 4, '#8fe3a0', true);
+  plate(obj, 4, 4, '#f0e2a0', false, VW - 84);
   plate('UANG ' + rp(money), 0, 20, '#8fe3a0', true);
   if (scene === 'play') {
     if (where === 'city' && wanted > 0) plate('BURONAN ' + '!'.repeat(Math.ceil(wanted)), 0, 36, '#f4a1a7', true);
@@ -2761,8 +2784,8 @@ function hud() {
     plate('PERLENGKAPAN ' + gear + '/4', 0, 36, '#bfe8dc', true);
     if (scene === 'play' && heistMode) plate(heistMode === 'stealth' ? 'RENCANA SENYAP' : 'RENCANA BERISIK', 4, 20, heistMode === 'stealth' ? '#8fe3a0' : '#f4a1a7');
   }
-  if (hasLoot) plate(rp(shown), 0, 4, '#8fe3a0', true);
   if (where === 'bank' && suspicion > .02) {
+    reserveHud(110, 20, 100, 6);
     ctx.fillStyle = '#000'; ctx.fillRect(110, 20, 100, 6);
     ctx.fillStyle = '#ee6a74'; ctx.fillRect(111, 21, 98 * suspicion, 4);
   }

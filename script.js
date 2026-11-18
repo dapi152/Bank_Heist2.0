@@ -37,8 +37,8 @@ function recordEnding(title) {
 }
 function saveProgress() {
   let saveWhere = where, saveX = player.x, saveY = player.y;
-  if (typeof where === 'string' && where.startsWith('r_')) {
-    const building = buildings.find(item => 'r_' + item.name === where);
+  if (typeof where === 'string' && (where.startsWith('r_') || where === 'k_roof' || where === 'k_sewer')) {
+    const building = buildings.find(item => where === 'k_roof' || where === 'k_sewer' ? item.name === 'HOTEL' : 'r_' + item.name === where);
     saveWhere = 'city';
     if (building) { const door = doorOf(building); saveX = door.x - 4; saveY = door.y - 4; }
   }
@@ -2223,7 +2223,7 @@ addEventListener('keydown', e => {
     if (!e.repeat) togglePause();
     return;
   }
-  if (scene === 'menu' || scene === 'end') return;
+  if (scene === 'menu' || scene === 'end' || scene === 'escape') return;
   if (e.code === 'KeyF' && !e.repeat) { useDiversion(); return; }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   if (e.code === 'KeyE' && !e.repeat) {
@@ -2275,6 +2275,7 @@ addEventListener('blur', () => { releaseTouchKeys(); for (const k in keys) delet
 $('continueGame').addEventListener('click', () => {
   if (!hasSaveData) return;
   $('mainMenu').hidden = true;
+  talk = null; target = null;
   if (where === 'bank' && !heistMode) {
     scene = 'heistchoice';
     $('heistChoice').hidden = false;

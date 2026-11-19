@@ -2501,8 +2501,20 @@ function renderText() {
     textCtx.fillStyle = color;
     textCtx.fillText(s, x, y);
   };
+  // teks dunia (nama tempat, balon, emote) tidak boleh tembus ke kotak HUD, peta mini, atau kotak dialog
+  const hasHud = plateRects.q === textQueue;
+  const covers = hasHud ? plateRects.slice() : [];
+  if (scene === 'talk') covers.push({ x: 8, y: VH - 62, w: VW - 16, h: 54 });
+  const covered = (text, font, align, X, Y) => {
+    textCtx.setTransform(1, 0, 0, 1, 0, 0);
+    textCtx.font = font;
+    const w = textCtx.measureText(text).width, size = parseFloat((font.match(/(\d+(?:\.\d+)?)px/) || [0, 8])[1]);
+    const left = align === 'center' ? X - w / 2 : align === 'right' ? X - w : X;
+    return covers.some(r => left < r.x + r.w && left + w > r.x && Y - size < r.y + r.h && Y > r.y);
+  };
   if (where === 'city') {
     placeLabels.forEach(({ s, x, y, color, font, align }) => {
+      if (covered(s, font, align, x - cam.x, y - cam.y)) return;
       textCtx.setTransform(sx, 0, 0, sy, -cam.x * sx, -cam.y * sy);
       textCtx.font = font;
       textCtx.textAlign = align;
@@ -2512,12 +2524,19 @@ function renderText() {
       textCtx.fillText(s, x, y);
     });
   }
-  textQueue.forEach(drawText);
+  textQueue.forEach((text, index) => {
+    const soft = hasHud && index < plateRects.from;
+    if (soft) {
+      const tr = text.transform;
+      if (covered(text.s, text.font, text.align, tr.a * text.x + tr.e, tr.d * text.y + tr.f)) return;
+    }
+    drawText(text);
+  });
   textCtx.setTransform(1, 0, 0, 1, 0, 0);
 }
 function plate(s, x, y, color, right, maxW) {
   ctx.font = 'bold 8px monospace';
-  if (plateRects.q !== textQueue) { plateRects = []; plateRects.q = textQueue; }
+  if (plateRects.q !== textQueue) { plateRects = []; plateRects.q = textQueue; plateRects.from = textQueue.length; }
   const limit = Math.min(maxW || VW - 8, VW - 8), full = ctx.measureText(s).width;
   const lines = full + 8 > limit ? wrap(s, Math.max(8, Math.floor((limit - 8) / (full / Math.max(1, s.length))))) : [s];
   const w = Math.ceil(Math.max(...lines.map(l => ctx.measureText(l).width))) + 8, h = 13 + (lines.length - 1) * 10;
@@ -2534,7 +2553,7 @@ function plate(s, x, y, color, right, maxW) {
   lines.forEach((l, i) => words(l, px + 4, py + 10 + i * 10, color));
 }
 function reserveHud(x, y, w, h) {
-  if (plateRects.q !== textQueue) { plateRects = []; plateRects.q = textQueue; }
+  if (plateRects.q !== textQueue) { plateRects = []; plateRects.q = textQueue; plateRects.from = textQueue.length; }
   plateRects.push({ x, y, w, h });
 }
 function wrap(s, n) {
@@ -2698,6 +2717,7 @@ function buildMiniLayer() {
   });
 }
 function drawMiniMap() {
+  reserveHud(VW - 64, 58, 64, 46);
   const x = VW - 62, y = 62;
   if (!miniLayer) buildMiniLayer();
   ctx.drawImage(miniLayer, x - 2, y - 2);
@@ -3186,7 +3206,10 @@ $('next').addEventListener('click', () => {
       if (!(n.emoT > 0) || scene === 'talk') return;
       const ch = n.emo === 'z' ? ['z', 'zZ', 'zZZ'][Math.floor(now / 500) % 3] : n.emo;
       const col = { '!': '#ee6a74', '♥': '#ff8fb0', z: '#9fb4ff' }[n.emo] || '#f0c24b';
-      words(ch, Math.round(n.x - cam.x) + 6, Math.round(n.y - cam.y - 22 - Math.sin(now / 180) * 1.5), col, 'bold 9px monospace', 'left');
+      const withBubble = n.sayT > 0 && n.say;
+      const ex = withBubble ? Math.round(n.x - cam.x + (n.say.length * 4.4 + 8) / 2 + 2) : Math.round(n.x - cam.x) + 6;
+      const ey = withBubble ? Math.round(n.y - cam.y - 26) : Math.round(n.y - cam.y - 22 - Math.sin(now / 180) * 1.5);
+      words(ch, ex, ey, col, 'bold 9px monospace', 'left');
     });
     if (!cat) return;
     if (scene === 'play') stepCat(dt);
@@ -3294,13 +3317,19 @@ $('next').addEventListener('click', () => {
       ctx.fillStyle = b.col; ctx.fillRect(Math.round(b.x - cam.x), Math.round(b.y - cam.y), 2, 2);
     }
 
-    if (where === 'city') npcs.forEach(n => {
-      if (!(n.sayT > 0) || scene === 'talk') return;
-      const w = n.say.length * 4.4 + 8, sx = Math.round(n.x - cam.x), sy = Math.round(n.y - cam.y - 28);
-      ctx.fillStyle = 'rgba(14,20,30,.88)'; ctx.fillRect(sx - w / 2, sy - 9, w, 12);
-      ctx.fillRect(sx - 1, sy + 3, 3, 2);
-      words(n.say, sx, sy, '#e8edf2', 'bold 7px monospace', 'center');
-    });
+    if (where === 'city') {
+      const placed = [];
+      npcs.forEach(n => {
+        if (!(n.sayT > 0) || scene === 'talk') return;
+        const w = n.say.length * 4.4 + 8, sx = Math.round(n.x - cam.x);
+        let sy = Math.round(n.y - cam.y - 28);
+        for (let k = 0; k < 4 && placed.some(r => sx - w / 2 < r.x + r.w && sx + w / 2 > r.x && sy - 9 < r.y + r.h && sy + 3 > r.y); k++) sy -= 14;
+        placed.push({ x: sx - w / 2, y: sy - 9, w, h: 12 });
+        ctx.fillStyle = 'rgba(14,20,30,.88)'; ctx.fillRect(sx - w / 2, sy - 9, w, 12);
+        ctx.fillRect(sx - 1, sy + 3, 3, 2);
+        words(n.say, sx, sy, '#e8edf2', 'bold 7px monospace', 'center');
+      });
+    }
 
     drawLife(now, dt);
 

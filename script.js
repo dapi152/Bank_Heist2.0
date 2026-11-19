@@ -423,8 +423,8 @@ function refreshLobby() {
   $('continueGame').disabled = !hasSaveData;
   $('newGame').textContent = finished ? 'MULAI DARI AWAL' : 'MULAI PETUALANGAN';
 }
-const sideQuest2Objectives = ['Bicara dengan Bu Tini untuk tugas sampingan kedua.', 'Antarkan gorengan ke Pak Ujang dekat bank.'];
-const sideQuestObjectives = ['Bicara dengan Pak Joko untuk mengambil tugas sampingan.', 'Antarkan paket ke Sari di dekat rumah.'];
+const sideQuest2Objectives = ['OPSIONAL: Bicara dengan Bu Tini (tengah kota) untuk tugas sampingan kedua. Cari titik pink di peta.', 'OPSIONAL: Antarkan gorengan ke Pak Ujang (depan bank). Ikuti panah pink.'];
+const sideQuestObjectives = ['OPSIONAL: Bicara dengan Pak Joko (timur kota, dekat bank) untuk tugas sampingan. Cari titik pink di peta.', 'OPSIONAL: Antarkan paket ke Sari (barat daya kota, dekat rumahmu). Ikuti panah pink.'];
 let cityLayer, bankLayer, decor = [];
 const cam = { x: 0, y: 0 };
 const keys = {};
@@ -2094,7 +2094,7 @@ function interact() {
     let questLines = null;
     if (n.name === 'Bu Tini' && sideQuest2Step === 0) {
       questLines = ['Nak, tolong antar sebungkus gorengan ke Pak Ujang dekat bank, ya.', 'Dia belum makan dari sore. Upahnya Rp 500 dari saya.'];
-      sideQuest2Step = 1; toast('Misi sampingan baru: antar gorengan ke Pak Ujang.'); saveProgress();
+      sideQuest2Step = 1; toast('Misi sampingan (opsional): antar gorengan ke Pak Ujang. Ikuti panah pink.'); saveProgress();
     } else if (n.name === 'Pak Ujang' && sideQuest2Step === 1) {
       questLines = ['Gorengan dari Bu Tini? Wah, pas lagi laper!', 'Ini upah Rp 500. Titip salam buat beliau.'];
       sideQuest2Step = 2; money += 500; toast('Gorengan terkirim! Kamu mendapat Rp 500.'); playSound('buy'); saveProgress();
@@ -2116,7 +2116,7 @@ function interact() {
           : n.lines);
     if (n.name === 'Raka' && missionStep === 1) { setMissionStep(2); if (inventory.lockpick) setMissionStep(3); }
     if (n.name === 'Pak Joko' && sideQuestStep === 0) {
-      sideQuestStep = 1; toast('Misi sampingan dimulai: antarkan paket ke Sari.');
+      sideQuestStep = 1; toast('Misi sampingan (opsional): antar paket ke Sari. Ikuti panah pink.');
       saveProgress();
     } else if (n.name === 'Sari' && sideQuestStep === 1) {
       sideQuestStep = 2; money += 800; toast('Paket terkirim! Kamu mendapat Rp 800.');
@@ -2636,6 +2636,7 @@ function draw() {
     ctx.fillRect(0, 0, VW, VH);
   }
   if (where === 'city' && missionStep === 1) drawRakaWaypoint();
+  if (where === 'city' && (scene === 'play' || scene === 'talk')) drawSideWaypoints();
   if (where === 'city' && (scene === 'play' || scene === 'talk')) drawMiniMap();
   hud();
   renderText();
@@ -2758,6 +2759,36 @@ function drawRakaWaypoint() {
   ctx.restore();
   if (visible || markerY > 38) words('RAKA', markerX, markerY - 9, '#ffe16b', 'bold 7px monospace', 'center');
   plate(guidance, 0, 42, '#ffe16b', true);
+}
+
+/* panah pink untuk misi sampingan yang sedang berjalan (opsional) */
+function drawSideWaypoints() {
+  const targets = [];
+  if (sideQuestStep === 1) targets.push({ n: npcs.find(n => n.name === 'Sari'), label: 'SARI' });
+  if (sideQuest2Step === 1) targets.push({ n: npcs.find(n => n.name === 'Pak Ujang'), label: 'UJANG' });
+  const playerX = player.x + 4, playerY = player.y + 6;
+  targets.forEach((t, i) => {
+    const npc = t.n;
+    if (!npc) return;
+    const dx = npc.x - playerX, dy = npc.y - playerY, distance = Math.hypot(dx, dy);
+    const targetX = npc.x - cam.x, targetY = npc.y - cam.y - 18;
+    const visible = targetX >= 18 && targetX <= VW - 18 && targetY >= 36 && targetY <= VH - 58;
+    const markerX = visible ? targetX : clamp(targetX, 18, VW - 18);
+    const markerY = visible ? targetY : clamp(targetY, 38, VH - 62);
+    const angle = visible ? 0 : Math.atan2(targetY - (playerY - cam.y), targetX - (playerX - cam.x)) + Math.PI / 2;
+    ctx.save();
+    ctx.translate(markerX, markerY);
+    ctx.rotate(angle);
+    ctx.fillStyle = '#ed82d3';
+    ctx.beginPath();
+    ctx.moveTo(0, -8); ctx.lineTo(6, 6); ctx.lineTo(0, 3); ctx.lineTo(-6, 6);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#312718'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.restore();
+    if (visible || markerY > 38) words(t.label, markerX, markerY - 9, '#ed82d3', 'bold 7px monospace', 'center');
+    const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'E' : 'W') : (dy > 0 ? 'S' : 'N');
+    plate(distance < 24 ? t.label + ' DEKAT (OPSIONAL)' : t.label + ' ' + dir + ' ' + Math.round(distance / T) + ' (OPSIONAL)', 4, 20 + i * 14, '#ed82d3', false);
+  });
 }
 
 function hud() {
